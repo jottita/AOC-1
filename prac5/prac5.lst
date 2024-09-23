@@ -1,0 +1,1063 @@
+
+
+
+ARM Macro Assembler    Page 1 
+
+
+    1 00000000                 AREA             datos,DATA
+    2 00000000         ;TODO EL MOVIEMIENTO(dirx y diry) SE PODRIA HACER CON UN
+                       A UNICA VARIABLE PARA CADA JUGADOR CON UN NUMERO DEL 0-3
+                        
+    3 00000000         ;REPRESENTADO CADA UNO UNA DIRECCIÓN{0 =IZQ,1=DER,2=ARRI
+                       BA,3=ABAJO POR EJEMPLO}
+    4 00000000         ;NO LO HE HECHO DE ESTA FORMA PORQUE SEGUI EL ESQUEMA QU
+                       E SE NOS FACILITA Y
+    5 00000000         ;SE ME OCURRIO CUANDO YA TENÍA GRAN PARTE DEL PROYECYO H
+                       ECHO PERO CREO QUE SERIA MÁS SENCILLO DE ESA FORMA
+    6 00000000 00000000 
+                       reloj   DCD              0           ;contador de centes
+                                                            imas de segundo
+    7 00000004 00000020 
+                       max     DCD              32          ;velocidad de movim
+                                                            iento (en centesima
+                                                            s s.)
+    8 00000008 00000020 
+                       velocidad
+                               DCD              32          ; auxilar que cambi
+                                                            a la vel
+    9 0000000C 00000000 
+                       mover   DCD              0           ;indica si hay que 
+                                                            moverse
+   10 00000010 00000000 
+                       dir1x   DCD              0           ;mov. horizontal ju
+                                                            gador1 (-1 izq,0 co
+                                                            l fija,1 der) 
+   11 00000014 00000000 
+                       dir1y   DCD              0           ;mov. vertical juga
+                                                            dor1 (-1 arriba,0 f
+                                                            ila fija,1 abajo)
+   12 00000018 00000000 
+                       dir2x   DCD              0           ;mov. horizontal ju
+                                                            gador2 (-1 izq.,0 c
+                                                            ol fija,1 der)
+   13 0000001C 00000000 
+                       dir2y   DCD              0           ;mov. vertical juga
+                                                            dor2 (-1 arriba,0 f
+                                                            ila fija,1 abajo)
+   14 00000020 00      fin     DCB              0           ;indicador fin de p
+                                                            rograma (si vale 1)
+                                                            
+   15 00000021 E0010000 
+                       R_DAT   EQU              0xE0010000  ;Registro de datos 
+                                                            donde se guarda el 
+                                                            ascii de la tecla p
+                                                            ulsada
+   16 00000021 E0004000 
+                       T0_IR   EQU              0xE0004000  ;EOI del timer
+   17 00000021 40007E00 
+                       ARRIBA  EQU              0x40007E00  ;Limite por arriba 
+                                                            
+   18 00000021 40007FFF 
+                       ABAJO   EQU              0x40007FFF  ;Limite por abajo
+   19 00000021 FFFFF010 
+                       VICIntEnable
+                               EQU              0xFFFFF010  ;act. Irqs (solo 1’
+                                                            s)
+
+
+
+ARM Macro Assembler    Page 2 
+
+
+   20 00000021 FFFFF014 
+                       VICIntEnClr
+                               EQU              0xFFFFF014  ;desact. IRQs (solo
+                                                             1’s)
+   21 00000021 FFFFF100 
+                       VICVectAddr0
+                               EQU              0xFFFFF100  ;vector interr. (VI
+                                                            )
+   22 00000021 FFFFF030 
+                       VICVectAddr
+                               EQU              0xFFFFF030  ;reg. para EOI
+   23 00000021 20202020 
+                       VACIO   EQU              0x20202020
+   24 00000021 00 00 00 
+              00000000 reloj_so
+                               DCD              0           ;var. para @RSI_tim
+                                                            er_SO 
+   25 00000028 00000000 
+                       teclado_so
+                               DCD              0           ;var. para @RSI_tec
+                                                            lado_SO 
+   26 0000002C 00000022 
+                       semilla DCD              0x000000022 ;semilla incializad
+                                                            a
+   27 00000030 00000000 
+                       posicion1
+                               DCD              0           ;posicion del perso
+                                                            naje 1
+   28 00000034 00000000 
+                       posicion2
+                               DCD              0           ;posicion del perso
+                                                            naje 2
+   29 00000038 00000000 
+              00000000 
+              00000000 pos_pos DCD              0,0,0       ; vector de posible
+                                                            s posciones cuando 
+                                                            el jugador se encue
+                                                            ntra con una colisi
+                                                            on 
+   30 00000044 00000000 
+                       colis   DCD              0           ; define si hay una
+                                                             colision
+   31 00000048 47 41 4D 
+              45 20 4F 
+              56 45 52 
+              2E 20 47 
+              41 4E 41 
+              44 4F 52 
+              20 4A 55 
+              47 41 44 
+              4F 52 20 pantalla_fin
+                               DCB              71,65,77,69,32,79,86,69,82,46,3
+2,71,65,78,65,68,79,82,32,74,85,71,65,68,79,82,32 
+                                                            ; mensaje gameover
+   32 00000063 53 41 4C 
+              49 45 4E 
+              44 4F 2E 
+              2E 2E    exit    DCB              83,65,76,73,69,78,68,79,46,46,4
+6 
+
+
+
+ARM Macro Assembler    Page 3 
+
+
+                                                            ; mensaje se pulsa 
+                                                            q
+   33 0000006E         ;posibles modificaciones para el 10 -> quitar cola,poner
+                        pantalla de volver a jugar + poner marcador
+   34 0000006E         
+   35 0000006E         
+   36 0000006E                 AREA             codigo,CODE
+   37 00000000                 EXPORT           inicio      ; forma de enlazar 
+                                                            con el startup.s
+   38 00000000                 IMPORT           srand       ; para poder invoca
+                                                            r SBR srand
+   39 00000000                 IMPORT           rand        ; para poder invoca
+                                                            r SBR rand
+   40 00000000         
+   41 00000000         
+   42 00000000         
+   43 00000000 E59F05E0        LDR              r0,=VICVectAddr0 ;salva guarda 
+                                                            de la timer del sis
+                                                            tema operativo
+   44 00000004 E59F15E0        LDR              r1,=reloj_so
+   45 00000008 E3A02004        mov              r2,#4
+   46 0000000C E7903102        ldr              r3,[r0,r2,LSL #2]
+   47 00000010 E5813000        str              r3,[r1]
+   48 00000014         
+   49 00000014 E59F05CC        LDR              r0,=VICVectAddr0 ;salva guarda 
+                                                            de la teclado del s
+                                                            istema operativo
+   50 00000018 E59F15D0        LDR              r1,=teclado_so
+   51 0000001C E3A02007        mov              r2,#7
+   52 00000020 E7903102        ldr              r3,[r0,r2,LSL #2]
+   53 00000024 E5813000        str              r3,[r1]
+   54 00000028         
+   55 00000028         
+   56 00000028 E59F15C4        LDR              r1,=RSI_reloj ; programar @IRQ4
+                                                             -> RSI_reloj
+   57 0000002C E3A02004        mov              r2,#4
+   58 00000030 E7801102        str              r1,[r0,r2,LSL #2] ; Guardamos R
+                                                            SI_reloj en la posi
+                                                            ción 4 de vector Ad
+                                                            dr
+   59 00000034 E59F15BC        LDR              r1,=RSI_teclado ; programar @IR
+                                                            Q7 -> RSI_teclado
+   60 00000038 E3A02007        mov              r2,#7
+   61 0000003C E7801102        str              r1,[r0,r2,LSL #2] ; Guardamos R
+                                                            SI_reloj en la posi
+                                                            ción 7 de vector Ad
+                                                            dr
+   62 00000040         
+   63 00000040 E59F05B4        LDR              r0,=VICIntEnable 
+                                                            ; activar IRQ4,IRQ7
+                                                            
+   64 00000044 E3A01090        mov              r1,#2_10010000
+   65 00000048 E5801000        str              r1,[r0]
+   66 0000004C         
+   67 0000004C E59F05AC        LDR              r0,=semilla ;  llamanda a srand
+                                                            
+   68 00000050 E5900000        ldr              r0,[r0]
+   69 00000054 E52D0004        PUSH{r0}
+   70 00000058 EBFFFFFE        bl               srand
+
+
+
+ARM Macro Assembler    Page 4 
+
+
+   71 0000005C E28DD004        add              sp,sp,#4
+   72 00000060         
+   73 00000060         ; dibujar pantalla inicial
+   74 00000060 EB00006B        bl               borra_pant
+   75 00000064         ; POSICION Y MOVIMIENTO PJ1
+   76 00000064 E24DD004        sub              sp,sp,#4    ; añadimos un hueco
+                                                             para el resultado
+   77 00000068 EBFFFFFE        bl               rand
+   78 0000006C E49D0004        pop{r0}                      ; r0= numero aleato
+                                                            rio sin limitar
+   79 00000070         
+   80 00000070 E3A01C02        mov              r1,#512
+   81 00000074 E2411001        sub              r1,r1,#1    ; r1 = 511 
+   82 00000078 E0000001        and              r0,r0,r1    ; r0 = primero 9 bi
+                                                            ts del numero aleat
+                                                            orio
+   83 0000007C E59F1580        ldr              r1,=dir1x   ; r1 =@dirx
+   84 00000080 E59F2580        ldr              r2,=dir1y   ; r2 =@diry
+   85 00000084 E59F3580        ldr              r3,=posicion1 ; r3 =@posicion
+   86 00000088 E3A04058        mov              r4,#'X'     ; r4 = X
+   87 0000008C         
+   88 0000008C E92D001F        push{r0,r1,r2,r3,r4}         ; pasamos {9 bits,@
+                                                            dirx,@diry,@posicio
+                                                            n}
+   89 00000090 EB000069        bl               tab_inicial ; subrutina que nos
+                                                             configur la primer
+                                                            a posicion y moviem
+                                                            into aleatorio del 
+                                                            personaje
+   90 00000094 E28DD010        add              sp,sp,#16
+   91 00000098         
+   92 00000098         
+   93 00000098 E24DD004        sub              sp,sp,#4    ; POSICION Y MOVIMI
+                                                            ENTO PJ2
+   94 0000009C EBFFFFFE        bl               rand
+   95 000000A0 E49D0004        pop{r0}                      ; r0= numero aleato
+                                                            rio nuevo sin limit
+                                                            ar
+   96 000000A4         
+   97 000000A4 E3A01C02        mov              r1,#512
+   98 000000A8 E2411001        sub              r1,r1,#1    ; r1= 511
+   99 000000AC E0000001        and              r0,r0,r1    ; r0 = primero 9 bi
+                                                            ts del numero aleat
+                                                            orio
+  100 000000B0 E59F1558        ldr              r1,=dir2x   ; r1 =@dirx
+  101 000000B4 E59F2558        ldr              r2,=dir2y   ; r2 =@diry
+  102 000000B8 E59F3558        ldr              r3,=posicion2 ; r3 =@posicion 
+  103 000000BC E3A0404F        mov              r4,#'O'     ; r4 = O   
+  104 000000C0         
+  105 000000C0 E92D001F        push{r0,r1,r2,r3,r4}         ; pasamos {9 bits,@
+                                                            dirx,@diry,@posicio
+                                                            n,letra,caracter}
+  106 000000C4 EB00005C        bl               tab_inicial ; subrutina que nos
+                                                             configur la primer
+                                                            a posicion y moviem
+                                                            into aleatorio del 
+                                                            personaje
+  107 000000C8 E28DD010        add              sp,sp,#16
+  108 000000CC         
+
+
+
+ARM Macro Assembler    Page 5 
+
+
+  109 000000CC         
+  110 000000CC         
+  111 000000CC E59F0548        LDR              r0, =fin    ; r0 = @fin
+  112 000000D0 E59F1548        LDR              r1, =mover  ; r1 = @mover
+  113 000000D4         
+  114 000000D4 E5902000 
+                       bucle   ldr              r2,[r0]     ;r2 = fin
+  115 000000D8 E3520001        cmp              r2,#1       ; si fin == 1
+  116 000000DC 0A000023        beq              pulsa_q     ;  salto a desactiv
+                                                            ar
+  117 000000E0         ; sino
+  118 000000E0 E5912000        ldr              r2,[r1]     ;   r2 = mover
+  119 000000E4 E3520001        cmp              r2,#1       ;  si mover != 1
+  120 000000E8 1AFFFFF9        bne              bucle       ;   salta a bucle
+  121 000000EC         ; si no:
+  122 000000EC         
+  123 000000EC         ;MOVIMIENTO DE PERSONAJE 1
+  124 000000EC         
+  125 000000EC E59F2518 
+                       jugador1
+                               ldr              r2, =posicion1 
+                                                            ; r2 = @posicion1
+  126 000000F0 E59F350C        ldr              r3, =dir1x  ; r3 = @dir1x
+  127 000000F4 E59F450C        ldr              r4, =dir1y  ; r4 = @dir1y
+  128 000000F8 E59F5524        ldr              r5, =colis  ; r5 = @colis
+  129 000000FC E59F6524        ldr              r6, =pos_pos ; r6 = @pos_pos
+  130 00000100         
+  131 00000100 E24DD004        sub              sp,sp,#4    ; dejamos espacio p
+                                                            ara el resultado de
+                                                             las subrutina
+  132 00000104 E92D007C        push{r2-r6}                  ; pasamos los param
+                                                            etros//posicion,dir
+                                                            x,diry,colis,pos_po
+                                                            s
+  133 00000108 EB000068        bl               movimiento  ;
+  134 0000010C E28DD014        add              sp,sp,#20   ; desapilamos los p
+                                                            arametro que no nos
+                                                             interesa recuperar
+                                                            
+  135 00000110 E49D7004        pop{r7}                      ; cargamos el resul
+                                                            tado en r2
+  136 00000114 E3570001        cmp              r7,#1       ; si el resultado =
+                                                             1
+  137 00000118 03A07032        moveq            r7,#50      ;  r7 = 2 porque si
+                                                             no encuentra movim
+                                                            iento gana el jugad
+                                                            or 2
+  138 0000011C 0A00001B        beq              gameover    ; fin del prgrama(n
+                                                            o hya movimientos p
+                                                            osibles)
+  139 00000120         
+  140 00000120 E5927000        ldr              r7,[r2]
+  141 00000124 E3A08058        mov              r8,#'X'     ; pintarlo
+  142 00000128 E5C78000        strb             r8,[r7]     ;   
+  143 0000012C         
+  144 0000012C E59F24E4 
+                       jugador2
+                               ldr              r2, =posicion2 
+                                                            ; r2 = @posicion1
+
+
+
+ARM Macro Assembler    Page 6 
+
+
+  145 00000130 E59F34D8        ldr              r3, =dir2x  ; r3 = @dir1x
+  146 00000134 E59F44D8        ldr              r4, =dir2y  ; r4 = @dir1y
+  147 00000138         
+  148 00000138 E24DD004        sub              sp,sp,#4    ; dejamos espacio p
+                                                            ara el resultado de
+                                                             las subrutina
+  149 0000013C E92D007C        push{r2-r6}                  ; pasamos los param
+                                                            etros
+  150 00000140 EB00005A        bl               movimiento  ;
+  151 00000144 E28DD014        add              sp,sp,# 20  ; desapilamos los p
+                                                            arametro que no nos
+                                                             interesa recuperar
+                                                            
+  152 00000148 E49D7004        pop{r7}                      ; cargamos el resul
+                                                            tado en r2
+  153 0000014C E3570001        cmp              r7,#1       ; si el resultado =
+                                                             1
+  154 00000150 03A07031        moveq            r7,#49
+  155 00000154 0A00000D        beq              gameover    ; fin del prgrama(n
+                                                            o hya movimientos p
+                                                            osibles)
+  156 00000158         ;  r7 = 1 porque si no encuentra movimiento gana el juga
+                       dor 1
+  157 00000158         
+  158 00000158 E5927000        ldr              r7,[r2]
+  159 0000015C E3A0804F        mov              r8,#'O'     ; pintarlo
+  160 00000160 E5C78000        strb             r8,[r7]     ;    
+  161 00000164         
+  162 00000164         
+  163 00000164 E0277007        eor              r7,r7,r7    ;  r7 = 0
+  164 00000168 E5817000        str              r7,[r1]     ;  mover = 0
+  165 0000016C         
+  166 0000016C         
+  167 0000016C EAFFFFD8        b                bucle
+  168 00000170         pulsa_q
+  169 00000170         
+  170 00000170 E59F04B4        LDR              r0,=ARRIBA
+  171 00000174 E28000A2        add              r0,r0,#162
+  172 00000178 E59F14B0        ldr              r1,=exit
+  173 0000017C E3A0200B        mov              r2,#11
+  174 00000180         
+  175 00000180 E92D0007        push{r0,r1,r2}
+  176 00000184 EB000016        bl               imp_mensaje
+  177 00000188 E28DD00C        add              sp,sp,#12
+  178 0000018C EA000007        b                desactivar
+  179 00000190         
+  180 00000190         gameover
+  181 00000190         
+  182 00000190 E59F0494        LDR              r0,=ARRIBA
+  183 00000194 E28000A2        add              r0,r0,#162
+  184 00000198 E59F1494        ldr              r1,=pantalla_fin
+  185 0000019C E5C1701B        strb             r7,[r1,#27]
+  186 000001A0 E3A0201C        mov              r2,#28
+  187 000001A4         
+  188 000001A4 E92D0007        push{r0,r1,r2}
+  189 000001A8 EB00000D        bl               imp_mensaje
+  190 000001AC E28DD00C        add              sp,sp,#12
+  191 000001B0         
+  192 000001B0         
+
+
+
+ARM Macro Assembler    Page 7 
+
+
+  193 000001B0         
+  194 000001B0 E59F0480 
+                       desactivar
+                               LDR              r0,=VICIntEnClr ;desactivar IRQ
+                                                            4,IRQ7
+  195 000001B4 E3A01090        mov              r1,#2_10010000
+  196 000001B8 E5801000        str              r1,[r0]
+  197 000001BC         
+  198 000001BC E59F0424        ldr              r0,=VICVectAddr0 ; r0 = @VICVec
+                                                            tAddr0
+  199 000001C0 E59F1424        LDR              r1,=reloj_so ; recuperacion rel
+                                                            oj_so; r1 = @reloj_
+                                                            so
+  200 000001C4 E5911000        ldr              r1,[r1]     ; r1 = reloj_so
+  201 000001C8 E3A02004        mov              r2,#4       ; 
+  202 000001CC E7801202        str              r1,[r0,r2,LSL#4] ; VI[4]=@RSI_r
+                                                            eloj_SO
+  203 000001D0         
+  204 000001D0 E59F1418        LDR              r1,=teclado_so ; recuperacion r
+                                                            eloj_so; r0 = @tecl
+                                                            ado_so
+  205 000001D4 E5911000        ldr              r1,[r1]     ; r1 = teclado_so
+  206 000001D8 E3A02007        mov              r2,#7
+  207 000001DC E7801202        str              r1,[r0,r2,LSL#4] ; VI[7]=@RSI_t
+                                                            eclado_SO
+  208 000001E0         
+  209 000001E0 EAFFFFFE 
+                       bfin    b                bfin
+  210 000001E4         
+  211 000001E4 E92D4800 
+                       imp_mensaje
+                               push{lr,fp}
+  212 000001E8 E1A0B00D        mov              fp,sp
+  213 000001EC E92D000F        push{r0-r3}
+  214 000001F0         
+  215 000001F0 EB000007        bl               borra_pant  ; subrutina para po
+                                                            ner la pantalla en 
+                                                            blanco
+  216 000001F4         
+  217 000001F4 E59B0008        ldr              r0,[fp,#8]  ; memoria donde emp
+                                                            ezar mensaje
+  218 000001F8 E59B100C        ldr              r1,[fp,#12] ; primer @ del vect
+                                                            ore del mensaje
+  219 000001FC E59B2010        ldr              r2,[fp,#16] ; tamaño del mensaj
+                                                            e
+  220 00000200         
+  221 00000200 E4D13001 
+                       escribir
+                               ldrb             r3,[r1],#1  ; escribimos bit a 
+                                                            bit el mensaje
+  222 00000204 E4C03001        strb             r3,[r0],#1
+  223 00000208 E2522001        subs             r2,r2,#1
+  224 0000020C 1AFFFFFB        bne              escribir
+  225 00000210         
+  226 00000210 E8BD880F        pop{r0-r3,fp,pc}
+  227 00000214         
+  228 00000214         borra_pant
+  229 00000214 E92D4800        push{lr,fp}
+  230 00000218 E1A0B00D        mov              fp,sp
+
+
+
+ARM Macro Assembler    Page 8 
+
+
+  231 0000021C E92D0007        push{r0-r2}
+  232 00000220 E59F0404        LDR              r0,=ARRIBA
+  233 00000224 E59F1410        LDR              r1,=VACIO
+  234 00000228 E3A02080        mov              r2,#128
+  235 0000022C         
+  236 0000022C E4801004 
+                       borra   str              r1,[r0],#4
+  237 00000230 E2522001        subs             r2,r2,#1
+  238 00000234 1AFFFFFC        bne              borra
+  239 00000238         
+  240 00000238 E8BD8807        pop{r0-r2,fp,pc}
+  241 0000023C         
+  242 0000023C         
+  243 0000023C         tab_inicial
+  244 0000023C E92D4800        push{lr,fp}
+  245 00000240 E1A0B00D        mov              fp,sp
+  246 00000244 E92D001F        push{r0-r4}
+  247 00000248         
+  248 00000248 E59B0008        ldr              r0,[fp,#8]  ;r0 = 9 bits
+  249 0000024C E59B1014        ldr              r1,[fp,#20] ;r1 = posicion
+  250 00000250 E59B200C        ldr              r2,[fp,#12] ;r2 = dirx
+  251 00000254         
+  252 00000254 E3A0307F        mov              r3,#127
+  253 00000258 E1500003        cmp              r0,r3       ; 0-127 = izq,128-2
+                                                            55 = dch,255-383 = 
+                                                            arriba,384-511 = ab
+                                                            ajo
+  254 0000025C D3E04000        movle            r4,#-1      ; si r0 <= 127 --> 
+                                                            4 = -1
+  255 00000260 DA00000B        ble              mov_ini
+  256 00000264         
+  257 00000264 E2833080        add              r3,#128
+  258 00000268 E1500003        cmp              r0,r3
+  259 0000026C D3A04001        movle            r4,#1       ; si r10 <=255  -->
+                                                             r4 =  1
+  260 00000270 DA000007        ble              mov_ini
+  261 00000274         
+  262 00000274 E59B2010        ldr              r2,[fp,#16] ;r2 = @diry
+  263 00000278         
+  264 00000278 E2833080        add              r3,#128
+  265 0000027C E1500003        cmp              r0,r3
+  266 00000280 D3E0401F        movle            r4,#-32     ; si r0 <= 383 --> 
+                                                            r4 = -32
+  267 00000284 DA000002        ble              mov_ini
+  268 00000288         
+  269 00000288 E2833080        add              r3,#128
+  270 0000028C E1500003        cmp              r0,r3       ;      
+  271 00000290 D3A04020        movle            r4,#32      ; si r0 <= 511 --> 
+                                                            r4 =  31 
+  272 00000294         
+  273 00000294 E5824000 
+                       mov_ini str              r4,[r2]     ; dir en r2 = r4
+  274 00000298         
+  275 00000298 E59F238C        LDR              r2,=ARRIBA  ; r2 = @ARRIBA; al 
+                                                            ser una constante "
+                                                            global" no la paso 
+                                                            por parametro 
+  276 0000029C E0820000        add              r0,r2,r0    ; r0 = limite de ar
+                                                            riba del vector + r
+
+
+
+ARM Macro Assembler    Page 9 
+
+
+                                                            0(primeros 9 bit)= 
+                                                            posicion elegida de
+                                                            finitiva
+  277 000002A0 E5810000        str              r0,[r1]     ; posicion = r0(pos
+                                                            icion elegida defin
+                                                            itiva)
+  278 000002A4 E59B2018        ldr              r2,[fp,#24] ; r2 = 'X'
+  279 000002A8 E5C02000        strb             r2,[r0]     ; r2 se almacena/di
+                                                            buja en r0
+  280 000002AC E8BD881F        pop{r0-r4,fp,pc}
+  281 000002B0         
+  282 000002B0         
+  283 000002B0         
+  284 000002B0         
+  285 000002B0         
+  286 000002B0 E92D4800 
+                       movimiento
+                               push{lr,fp}
+  287 000002B4 E1A0B00D        mov              fp,sp
+  288 000002B8 E92D07FF        push{r0-r10}
+  289 000002BC E59B0008        ldr              r0,[fp,#8]  ; r0 = @posicion
+  290 000002C0 E59B100C        ldr              r1,[fp,#12] ; r1 = @dirx
+  291 000002C4 E59B2010        ldr              r2,[fp,#16] ; r2 = @diry
+  292 000002C8 E59B3014        ldr              r3,[fp,#20] ; r3 = @colis
+  293 000002CC E59B4018        ldr              r4,[fp,#24] ; r4 = @pos_pos
+  294 000002D0 E02AA00A        eor              r10,r10,r10 ; r10 = 0 [será don
+                                                            de almacenamos si e
+                                                            s game over para pa
+                                                            sarlo al final como
+                                                             resultado de la su
+                                                            brutina]
+  295 000002D4         
+  296 000002D4         ; realmente podrias pasar como parametro @fin, con un st
+                       ore modificarlo directamente y
+  297 000002D4         ; hacer que la subrutina no tuviese resultado, pero al f
+                       inal 
+  298 000002D4         ; se usan los mismos registros asi que me queda con esta
+                        porque era la que ya tenia implementada.
+  299 000002D4         
+  300 000002D4 E5905000        ldr              r5,[r0]     ; r5 = posicion1
+  301 000002D8 E5916000        ldr              r6,[r1]     ; r6 = dir1x
+  302 000002DC E3560000        cmp              r6,#0       ;
+  303 000002E0 4A000006        bmi              izq         ; si r6 < 0 --> sal
+                                                            to a izq
+  304 000002E4 CA00000D        bgt              dch         ; si r6 > 0 -->  sa
+                                                            lto a dch
+  305 000002E8         
+  306 000002E8 E5926000        ldr              r6,[r2]     ; r6 = dir1y
+  307 000002EC E3560000        cmp              r6,#0       ; si r6 == 0
+  308 000002F0 BA000012        blt              arriba      ; si r6 < 0 --> sal
+                                                            to a arriba
+  309 000002F4 CA000019        bgt              abajo       ; si r6 > 0 -->  sa
+                                                            lto a abajo
+  310 000002F8         ; si ninguno de los dos salta significa que no se ha esc
+                       ogido tecla
+  311 000002F8 E1A06005        mov              r6,r5
+  312 000002FC         
+  313 000002FC EA000052        b                fin_mov     ;seguir direccion a
+                                                            nterior
+
+
+
+ARM Macro Assembler    Page 10 
+
+
+  314 00000300         ; r5 = posicion1
+  315 00000300         izq
+  316 00000300 E2456001        sub              r6,r5,#1    ; r6 = r5 - 1(dir1x
+                                                            )
+  317 00000304 E206701F        and              r7, r6, #31 ; r7 = r6(posible p
+                                                            osicion final) and 
+                                                            31(numero de column
+                                                            as)
+  318 00000308 E357001F        cmp              r7,#31      ; si r7 == 31
+  319 0000030C 0285601F        addeq            r6,r5,#31   ;  r6 = r5(pos inic
+                                                            ial) - 31(una fila 
+                                                            entera)
+  320 00000310 E5937000        ldr              r7,[r3]     ; r7 = colis
+  321 00000314 E3570001        cmp              r7,#1
+  322 00000318 0A000029        beq              col_izq
+  323 0000031C EA000016        b                colision
+  324 00000320         
+  325 00000320 E2856001 
+                       dch     add              r6,r5,#1    ; r6 = r5 + 1(dir1x
+                                                            )
+  326 00000324 E206701F        and              r7,r6,#31   ; r7 = r6(posible p
+                                                            osicion final) and 
+                                                            31(numero de column
+                                                            as
+  327 00000328 E3570000        cmp              r7,#0       ; si r7 == 0
+  328 0000032C 0245601F        subeq            r6,r5,#31   ;  r6 = r5(pos inic
+                                                            ial) - 31(una fila 
+                                                            entera) 
+  329 00000330 E5937000        ldr              r7,[r3]     ; r7 = colis
+  330 00000334 E3570001        cmp              r7,#1
+  331 00000338 0A000026        beq              col_dch
+  332 0000033C EA00000E        b                colision
+  333 00000340         
+  334 00000340         arriba
+  335 00000340 E2456020        sub              r6,r5,#32   ; r6 = r5 - 32(dir1
+                                                            y)
+  336 00000344 E59F72E0        ldr              r7,=ARRIBA  ; si no: r7 = @ARRI
+                                                            BA
+  337 00000348 E1570006        cmp              r7,r6       ; si r7 > r6
+  338 0000034C 82866C02        addhi            r6,r6,#512  ;  r8 = r8 + 512(un
+                                                             tablero entero)
+  339 00000350 E5937000        ldr              r7,[r3]     ; r7 = colis
+  340 00000354 E3570001        cmp              r7,#1
+  341 00000358 0A00000F        beq              col_ar
+  342 0000035C EA000006        b                colision
+  343 00000360         
+  344 00000360 E2856020 
+                       abajo   add              r6,r5,#32   ;r6 = r5 + 32(dir1y
+                                                            )
+  345 00000364 E59F72D4        ldr              r7,=ABAJO   ; si no: r7 = @ABAJ
+                                                            O
+  346 00000368 E1560007        cmp              r6,r7       ; si r6 > r7
+  347 0000036C 82466C02        subhi            r6,r6,#512  ;  r6 = r6 - 512(un
+                                                             tablero entero)
+  348 00000370 E5937000        ldr              r7,[r3]     ; r7 = colis
+  349 00000374 E3570001        cmp              r7,#1
+  350 00000378 0A00000C        beq              col_ab
+  351 0000037C         
+  352 0000037C         
+
+
+
+ARM Macro Assembler    Page 11 
+
+
+  353 0000037C         
+  354 0000037C         
+  355 0000037C         colision
+  356 0000037C         
+  357 0000037C E5D67000        ldrb             r7,[r6]     ; r7 = ascii que ha
+                                                            y en r6(posible pos
+                                                            icion final )
+  358 00000380 E3570020        cmp              r7,#32      ; si r7 != 32(space
+                                                             en ascii)
+  359 00000384 0A000030        beq              fin_mov     ; hay colision
+  360 00000388         
+  361 00000388 E3A07001        mov              r7,#1       ;
+  362 0000038C E5837000        str              r7,[r3]     ; colis = 1  
+  363 00000390 E0288008        eor              r8,r8,r8    ; r8 = 0
+  364 00000394 E1A09004        mov              r9,r4       ; r9 = @pos_pos; ha
+                                                            cemos esto porque v
+                                                            amos a modificar la
+                                                             @ en r9 pero neces
+                                                            itamos la principal
+                                                             r4 intacta
+  365 00000398         
+  366 00000398         ;ARRIBA  
+  367 00000398 EAFFFFE8        b                arriba
+  368 0000039C E5D67000 
+                       col_ar  ldrb             r7,[r6]     ; r7 = r6(el ascii)
+                                                            
+  369 000003A0 E3570020        cmp              r7,#32      ; si r7 == 32
+  370 000003A4 02888001        addeq            r8,r8,#1    ;  r8++
+  371 000003A8 04896004        streq            r6,[r9],#4  ;   pos_pos + posic
+                                                            iones @ = r6
+  372 000003AC         
+  373 000003AC         ;ABAJO
+  374 000003AC EAFFFFEB        b                abajo
+  375 000003B0 E5D67000 
+                       col_ab  ldrb             r7,[r6]     ; r7 = r6(el ascii)
+                                                            
+  376 000003B4 E3570020        cmp              r7,#32      ; si r7 == 32
+  377 000003B8 02888001        addeq            r8,r8,#1    ;  r8++
+  378 000003BC 04896004        streq            r6,[r9],#4  ;   pos_pos + posic
+                                                            iones @ = r6
+  379 000003C0         
+  380 000003C0         ;IZQUIERDA
+  381 000003C0 EAFFFFCE        b                izq
+  382 000003C4 E5D67000 
+                       col_izq ldrb             r7,[r6]     ; r7 = r6(el ascii)
+                                                            
+  383 000003C8 E3570020        cmp              r7,#32      ; si r7 == 32
+  384 000003CC 02888001        addeq            r8,r8,#1    ;  r8++
+  385 000003D0 04896004        streq            r6,[r9],#4  ;   pos_pos + posic
+                                                            iones @ = r6
+  386 000003D4         
+  387 000003D4         ;DERECHA
+  388 000003D4 EAFFFFD1        b                dch
+  389 000003D8 E5D67000 
+                       col_dch ldrb             r7,[r6]     ; r7 = r6(el ascii)
+                                                            
+  390 000003DC E3570020        cmp              r7,#32      ; si r7 == 32
+  391 000003E0 02888001        addeq            r8,r8,#1    ;  r8++
+  392 000003E4 04896004        streq            r6,[r9],#4  ;   pos_pos + posic
+
+
+
+ARM Macro Assembler    Page 12 
+
+
+                                                            iones @ = r6
+  393 000003E8         
+  394 000003E8 E3580001        cmp              r8,#1
+  395 000003EC 03A06000        moveq            r6,#0
+  396 000003F0 0A000006        beq              unico
+  397 000003F4 B3A0A001        movlt            r10,#1
+  398 000003F8 B58BA01C        strlt            r10,[fp,#28] ; cargas si es gam
+                                                            e over en el result
+                                                            ado 
+  399 000003FC BA000012        blt              fin_mov     ; fin del juego, ha
+                                                            y un ganador;METERL
+                                                            E RESULTADO
+  400 00000400         
+  401 00000400 E24DD004        sub              sp,sp,#4    ; añadimos un hueco
+                                                             para el resultado
+  402 00000404 EBFFFFFE        bl               rand
+  403 00000408 E49D7004        pop{r7}                      ; r7 = numero aleat
+                                                            orio
+  404 0000040C E2076001        and              r6, r7,#1   ; r6  r7 and 1 para
+                                                             coger un bit
+  405 00000410         
+  406 00000410         unico
+  407 00000410 E7946106        ldr              r6,[r4,r6,LSL#2] ; r6 = r4[r6] 
+                                                            = a la posicion gua
+                                                            rdad en streq
+  408 00000414 E3A08000        mov              r8,#0       ; r8 = 0
+  409 00000418 E5838000        str              r8,[r3]     ; colis = r8
+  410 0000041C         
+  411 0000041C E3A07000        mov              r7,#0
+  412 00000420 E0467005        sub              r7,r6,r5    ; r7 = posicion cor
+                                                            regida - posicion i
+                                                            nicial = {1,-1,32,-
+                                                            32}
+  413 00000424 E3570001        cmp              r7,#1       ; si r7 >= 1 solo p
+                                                            uede ser abajo o de
+                                                            recha
+  414 00000428 05817000        streq            r7,[r1]     ; posicionx = r7   
+                                                            
+  415 0000042C 05828000        streq            r8,[r2]     ; posiciony = 0
+  416 00000430 C5827000        strgt            r7,[r2]     ; posiciony = r7
+  417 00000434 C5818000        strgt            r8,[r1]     ; posicionx = 0
+  418 00000438 E3770001        cmp              r7,#-1      ; si r7 <= -1 solo 
+                                                            puede ser arriba o 
+                                                            izquierda
+  419 0000043C 05817000        streq            r7,[r1]     ; posicionx = r7   
+                                                            
+  420 00000440 05828000        streq            r8,[r2]     ; posiciony = 0
+  421 00000444 B5827000        strlt            r7,[r2]     ; posiciony = r7
+  422 00000448 B5818000        strlt            r8,[r1]     ; posicionx = 0  
+  423 0000044C         
+  424 0000044C         
+  425 0000044C E35A0001 
+                       fin_mov cmp              r10,#1      ; si no es gameover
+                                                             r8 != 1
+  426 00000450 15806000        strne            r6,[r0]     ;   posicion = r6
+  427 00000454 E8BD8FFF        pop{r0-r10,fp,pc}
+  428 00000458         
+  429 00000458         
+  430 00000458         
+
+
+
+ARM Macro Assembler    Page 13 
+
+
+  431 00000458         RSI_reloj                            ;Rutina de servicio
+                                                             a la interrupcion 
+                                                            IRQ4 (timer 0)
+  432 00000458         ;Cada 0,01 s. llega una peticion de interrupcion
+  433 00000458         ;usada la rsi timer de las notas de apoyo como referenci
+                       a
+  434 00000458         
+  435 00000458 E24EE004        sub              lr,lr,#4    ;prologo
+  436 0000045C E52DE004        PUSH             {lr}
+  437 00000460 E14FE000        mrs              r14,spsr
+  438 00000464 E52DE004        PUSH             {r14}
+  439 00000468 E321F052        msr              cpsr_c,#2_01010010
+  440 0000046C         
+  441 0000046C E92D000F        PUSH             {r0-r3}
+  442 00000470         
+  443 00000470 E59F01CC        LDR              r0,=T0_IR   ;EOI: escribir un 1
+                                                             en el registro T0_
+                                                            IR
+  444 00000474 E3A01001        mov              r1,#1
+  445 00000478 E5801000        str              r1,[r0]
+  446 0000047C         
+  447 0000047C E59F01C4        ldr              r0,=reloj   ; r0 = @reloj
+  448 00000480 E5901000        ldr              r1,[r0]     ; r1 = reloj
+  449 00000484 E2811001        add              r1,r1,#1    ; r1++
+  450 00000488 E59F21BC        ldr              r2,= max    ; r2 = @max
+  451 0000048C E5923000        ldr              r3,[r2]     ; r3 = max
+  452 00000490 E1510003        cmp              r1,r3       ; si r1(reloj) == r
+                                                            3(max)
+  453 00000494 1A000007        bne              fin_reloj
+  454 00000498 E59F11B0        ldr              r1,=velocidad ; r1 = @veolcidad
+                                                            
+  455 0000049C E5911000        ldr              r1,[r1]     ; r1 = velocidad
+  456 000004A0 E1510003        cmp              r1,r3       ; si r1 != r2
+  457 000004A4 15821000        strne            r1,[r2]     ;  max = velocidad 
+                                                            
+  458 000004A8         
+  459 000004A8         
+  460 000004A8 E3A01001        mov              r1,#1       ; r2 = 1
+  461 000004AC E59F316C        ldr              r3,=mover   ;  r3 = @mover
+  462 000004B0 E5831000        str              r1,[r3]     ; mover = r1 = 1
+  463 000004B4 E3A01000        mov              r1,#0
+  464 000004B8         
+  465 000004B8 E5801000 
+                       fin_reloj
+                               str              r1,[r0]     ; reloj = r1
+  466 000004BC         
+  467 000004BC E8BD000F        POP              {r0-r3}
+  468 000004C0         ;epilogo
+  469 000004C0 E321F0D2        msr              cpsr_c,#2_11010010
+  470 000004C4 E49DE004        POP              {r14}
+  471 000004C8 E16FF00E        msr              spsr_fsxc,r14
+  472 000004CC E59FE180        LDR              r14,=VICVectAddr
+  473 000004D0 E58EE000        str              r14,[r14]
+  474 000004D4 E8FD8000        POP              {pc}^
+  475 000004D8         
+  476 000004D8         
+  477 000004D8         RSI_teclado                          ;Rutina de servicio
+                                                             a la interrupcion 
+                                                            IRQ7 (teclado)
+
+
+
+ARM Macro Assembler    Page 14 
+
+
+  478 000004D8         ;al pulsar cada tecla llega peticion de interrupcion IRQ
+                       7
+  479 000004D8         ;usada la rsi teclado de las notas de apoyo como referen
+                       cia
+  480 000004D8         
+  481 000004D8 E24EE004        sub              lr,lr,#4    ;prologo
+  482 000004DC E52DE004        PUSH             {lr}
+  483 000004E0 E14FE000        mrs              r14,spsr
+  484 000004E4 E52DE004        PUSH             {r14}
+  485 000004E8 E321F052        msr              cpsr_c,#2_01010010
+  486 000004EC E92D001F        PUSH             {r0-r4}
+  487 000004F0         
+  488 000004F0 E59F1160        LDR              r1,=R_DAT   ;r1=@R_DATOS teclad
+                                                            o
+  489 000004F4 E5D10000        ldrb             r0,[r1]     ;r0=codigo ASCII te
+                                                            cla, al leer se com
+                                                            pleta el EOI
+  490 000004F8         
+  491 000004F8 E59F1150        LDR              r1,= velocidad 
+                                                            ; r1 = @velocidad
+  492 000004FC E5912000        ldr              r2,[r1]     ; r2 = velocidad
+  493 00000500 E3520001        cmp              r2,#1       ; si r2 == 1
+  494 00000504 0A000003        beq              max_vel     ;  solo puede ir ma
+                                                            s lento, se ha alca
+                                                            nzado el maximo de 
+                                                            velocidad
+  495 00000508 E350002B        cmp              r0,#'+'     ; si r0 == 43 = '+'
+                                                             
+  496 0000050C 01A020A2        moveq            r2,r2,lsr#1 ;  r2 = r2/2 para q
+                                                            ue se haga un movim
+                                                            iento cada menos de
+                                                            cimas, disminuimos 
+                                                            el numero de ticks 
+                                                            necesarios para mov
+                                                            erse
+  497 00000510 E3520080        cmp              r2 ,#128    ; si r2 == 128
+  498 00000514 0A000001        beq              act         ;  solo puede ir má
+                                                            s rápido, se ha alc
+                                                            anzado el minimo de
+                                                             velocidad
+  499 00000518 E350002D 
+                       max_vel cmp              r0,#'-'     ; si r0 == 45 = '-'
+                                                            
+  500 0000051C 01A02082        moveq            r2,r2,lsl#1 ;  r2 = r2*2 para q
+                                                            ue se haga un movim
+                                                            iento cada más deci
+                                                            mas, aumentamos el 
+                                                            numero de ticks nec
+                                                            esarios para movers
+                                                            e
+  501 00000520         
+  502 00000520 E5812000 
+                       act     str              r2,[r1]     ; max = r2
+  503 00000524         
+  504 00000524         
+  505 00000524         ; Tratamiento: paso a mayusculas 
+  506 00000524 E3C00020        bic              r0,r0,#2_100000 ; r1 = r0 and n
+                                                            ot(00100000) [impor
+                                                            tante --> r0 mantie
+
+
+
+ARM Macro Assembler    Page 15 
+
+
+                                                            ne ascii original d
+                                                            e la tecla pulsada]
+                                                            
+  507 00000528 E3500051        cmp              r0,#81      ; si r1 == 81 = Q
+  508 0000052C 1A000003        bne              sigue
+  509 00000530         
+  510 00000530 E59F10E4        LDR              r1,=fin     ;  r1 = @fin
+  511 00000534 E3A00001        mov              r0,#1       ; r0 = 1
+  512 00000538 E5810000        str              r0,[r1]     ;  fin = r0 = 1
+  513 0000053C EA000022        b                epilogo     ;  salta al epilogo
+                                                            
+  514 00000540         
+  515 00000540         ;
+  516 00000540         sigue
+  517 00000540         
+  518 00000540 E3500049        cmp              r0,#'I'     ; si r0 < I
+  519 00000544 BA00000F        blt              p1x         ; salta al movimien
+                                                            to en x del p1
+  520 00000548 E350004C        cmp              r0,#'L'     ; si r0 > L
+  521 0000054C CA000015        bgt              p1y         ;  salta al movimie
+                                                            nto en y del p1
+  522 00000550         ; movimiento p2
+  523 00000550 E59F10B8        ldr              r1,=dir2x   ; r1 = @dir2x [ya n
+                                                            o necestimos el asc
+                                                            ii orginal asi que 
+                                                            podemos reescrbir]
+  524 00000554 E59F20B8        ldr              r2,=dir2y   ; r2 = @dir2y
+  525 00000558         ; si r0 == 11(L)(usamos las flags de la ultima comparaci
+                       ón)
+  526 00000558 03A03001        moveq            r3,#1       ;  r3 = 1(derecha)
+  527 0000055C 03A04000        moveq            r4,#0       ;  r4 = 0
+  528 00000560 E350004B        cmp              r0,#'K'     ; si r0 == K-> r3 =
+                                                             0
+  529 00000564 03A03000        moveq            r3,#0       ;   r3 = 0
+  530 00000568 03A04001        moveq            r4,#1       ;  r4 = 1(abajo)   
+                                                            
+  531 0000056C E350004A        cmp              r0,#'J'     ; si r0 == 9(J) 
+  532 00000570 03E03000        moveq            r3,#-1      ;   r3 = -1(izq)
+  533 00000574 03A04000        moveq            r4,#0       ;  r4 = 0
+  534 00000578 E3500049        cmp              r0,#'I'     ; si r0 == 8(I)-> r
+                                                            3 = 0
+  535 0000057C 03A03000        moveq            r3,#0       ;   r3 = 0
+  536 00000580 03E04000        moveq            r4,#-1      ;  r4 = -1(arriba)
+  537 00000584         
+  538 00000584 EA00000E        b                act_dir     ; salto a actualiza
+                                                            r direcciones
+  539 00000588         
+  540 00000588 E59F1074 
+                       p1x     ldr              r1,=dir1x   ; r0 = @dir2x [ya n
+                                                            o necestimos el asc
+                                                            ii orginal asi que 
+                                                            podemos reescrbir e
+                                                            n r0]
+  541 0000058C E59F2074        ldr              r2,=dir1y   ; r2 = @dir2y 
+  542 00000590 E3A04000        mov              r4,#0       ; r4 = 0 porque dir
+                                                            1y siempre va a ser
+                                                             0
+  543 00000594         
+  544 00000594 E3500041        cmp              r0,#'A'     ; si r1 == 0(A)
+
+
+
+ARM Macro Assembler    Page 16 
+
+
+  545 00000598 03E03000        moveq            r3,#-1      ;  r3 = -1(izquierd
+                                                            a)
+  546 0000059C E3500044        cmp              r0,#'D'     ; si r1 == 3(D)
+  547 000005A0 03A03001        moveq            r3,#1       ;   r3 = 1 (derecha
+                                                            )
+  548 000005A4 EA000006        b                act_dir     ; salto a actualiza
+                                                            r direcciones
+  549 000005A8         
+  550 000005A8 E59F1054 
+                       p1y     ldr              r1,=dir1x   ; r1 = @dir2x [ya n
+                                                            o necestimos el asc
+                                                            ii orginal asi que 
+                                                            podemos reescrbir e
+                                                            n r0]
+  551 000005AC E59F2054        ldr              r2,=dir1y   ; r2 = @dir2y
+  552 000005B0 E3A03000        mov              r3,#0       ; r3 = 0 porque dir
+                                                            1x siempre va a ser
+                                                             0
+  553 000005B4         
+  554 000005B4 E3500057        cmp              r0,#'W'     ; si r1 == 22(W)
+  555 000005B8 03E04000        moveq            r4,#-1      ;  r4 = -1(arriba)
+  556 000005BC E3500053        cmp              r0,#'S'     ; si r1 == 18(S)
+  557 000005C0 03A04001        moveq            r4,#1       ;   r4 = 1 (abajo)
+  558 000005C4         
+  559 000005C4 E5813000 
+                       act_dir str              r3,[r1]     ; dir1x/dir2x = r3
+  560 000005C8 E5824000        str              r4,[r2]     ; dir1y/dir2y = r4
+  561 000005CC         
+  562 000005CC E8BD001F 
+                       epilogo POP              {r0-r4}
+  563 000005D0         
+  564 000005D0 E321F0D2        msr              cpsr_c,#2_11010010
+  565 000005D4 E49DE004        POP              {r14}
+  566 000005D8 E16FF00E        msr              spsr_fsxc,r14
+  567 000005DC E59FE070        LDR              r14,=VICVectAddr
+  568 000005E0 E58EE000        str              r14,[r14]
+  569 000005E4 E8FD8000        POP              {pc}^
+  570 000005E8         
+  571 000005E8         
+  572 000005E8         
+  573 000005E8         
+  574 000005E8         
+  575 000005E8                 END
+              FFFFF100 
+              00000000 
+              00000000 
+              00000000 
+              00000000 
+              FFFFF010 
+              00000000 
+              00000000 
+              00000000 
+              00000000 
+              00000000 
+              00000000 
+              00000000 
+              00000000 
+              00000000 
+              00000000 
+
+
+
+ARM Macro Assembler    Page 17 
+
+
+              00000000 
+              40007E00 
+              00000000 
+              00000000 
+              FFFFF014 
+              20202020 
+              40007FFF 
+              E0004000 
+              00000000 
+              00000000 
+              00000000 
+              FFFFF030 
+              E0010000 
+Command Line: --debug --xref --diag_suppress=9931 --apcs=interwork --depend=.\p
+rac5.d -o.\prac5.o -IC:\Keil_v5\ARM\RV31\INC -IC:\Keil_v5\ARM\CMSIS\Include -IC
+:\Keil_v5\ARM\INC\Philips --predefine="__EVAL SETA 1" --predefine="__UVISION_VE
+RSION SETA 526" --list=.\prac5.lst prac5.s
