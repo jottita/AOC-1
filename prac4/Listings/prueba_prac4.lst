@@ -1,0 +1,146 @@
+
+
+
+ARM Macro Assembler    Page 1 
+
+
+    1 00000000                 AREA             datos,DATA
+    2 00000000 00000005 
+                       n       DCD              5           ;numero para calcul
+                                                            ar el factorial
+    3 00000004 00000000 
+                       fact    DCD              0           ;resultado del fact
+                                                            orial
+    4 00000008                 AREA             codigo,CODE
+    5 00000000                 ENTRY
+    6 00000000 E24DD004        sub              sp,sp,#4    ;espacio para resul
+                                                            tado
+    7 00000004 E59F1058        LDR              r1,=n       ;r1=direccion de n
+    8 00000008 E5910000        ldr              r0,[r1]     ;r0=n
+    9 0000000C E52D0004        PUSH             {r0}        ;apilar n (por valo
+                                                            r)
+   10 00000010 EB000004        bl               facto       ;llamar a SBR facto
+                                                            
+   11 00000014 E28DD004        add              sp,sp,#4    ;liberar parametro
+   12 00000018 E49D0004        POP              {r0}        ;r0=n!
+   13 0000001C E59F1044        LDR              r1,=fact    ;r1=@fact
+   14 00000020 E5810000        str              r0,[r1]     ;fact=n!
+   15 00000024         
+   16 00000024 EAFFFFFE 
+                       fin     b                fin
+   17 00000028         
+   18 00000028         ;SBR recursiva FACTO
+   19 00000028 E92D4800 
+                       facto   PUSH             {lr,r11}    ;apilar r14=@ret y 
+                                                            r11
+   20 0000002C E1A0B00D        mov              fp,sp       ;r11=fp=frame point
+                                                            er
+   21 00000030 E92D0003        PUSH             {r0,r1}     ;apilar registros a
+                                                             utilizar
+   22 00000034 E59B0008        ldr              r0,[fp,#8]  ;r0=n (valor)
+   23 00000038 E3500001        cmp              r0,#1
+   24 0000003C 0A000006        beq              fins        ;salta si n=1 (caso
+                                                             trivial)
+   25 00000040 E2401001        sub              r1,r0,#1    ;r1=n-1
+   26 00000044 E24DD004        sub              sp,sp,#4    ;espacio para resul
+                                                            tado
+   27 00000048 E52D1004        PUSH             {r1}        ;apilar n-1 (por va
+                                                            lor)
+   28 0000004C EBFFFFF5        bl               facto       ;llamada recursiva 
+                                                            a SBR facto
+   29 00000050 E28DD004        add              sp,sp,#4    ;liberar parametro
+   30 00000054 E49D1004        POP              {r1}        ;desapila resul. r1
+                                                            =(n-1)!
+   31 00000058 E0000091        mul              r0,r1,r0    ;r0=n*(n-1)!=n!=F(n
+                                                            )
+   32 0000005C E58B000C 
+                       fins    str              r0,[fp,#12] ;res=F(n)
+   33 00000060 E8BD8803        POP              {r0-r1,r11,pc} ;rec. reg. utili
+                                                            zados y retornar
+   34 00000064         
+   35 00000064                 END
+              00000000 
+              00000000 
+Command Line: --debug --xref --diag_suppress=9931 --apcs=interwork --depend=.\o
+bjects\prueba_prac4.d -o.\objects\prueba_prac4.o -IC:\Keil_v5\ARM\RV31\INC -IC:
+
+
+
+ARM Macro Assembler    Page 2 
+
+
+\Keil_v5\ARM\CMSIS\Include -IC:\Keil_v5\ARM\INC\Philips --predefine="__EVAL SET
+A 1" --predefine="__UVISION_VERSION SETA 526" --list=.\listings\prueba_prac4.ls
+t prueba_prac4.s
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+Relocatable symbols
+
+datos 00000000
+
+Symbol: datos
+   Definitions
+      At line 1 in file prueba_prac4.s
+   Uses
+      None
+Comment: datos unused
+fact 00000004
+
+Symbol: fact
+   Definitions
+      At line 3 in file prueba_prac4.s
+   Uses
+      At line 13 in file prueba_prac4.s
+Comment: fact used once
+n 00000000
+
+Symbol: n
+   Definitions
+      At line 2 in file prueba_prac4.s
+   Uses
+      At line 7 in file prueba_prac4.s
+Comment: n used once
+3 symbols
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+Relocatable symbols
+
+codigo 00000000
+
+Symbol: codigo
+   Definitions
+      At line 4 in file prueba_prac4.s
+   Uses
+      None
+Comment: codigo unused
+facto 00000028
+
+Symbol: facto
+   Definitions
+      At line 19 in file prueba_prac4.s
+   Uses
+      At line 10 in file prueba_prac4.s
+      At line 28 in file prueba_prac4.s
+
+fin 00000024
+
+Symbol: fin
+   Definitions
+      At line 16 in file prueba_prac4.s
+   Uses
+      At line 16 in file prueba_prac4.s
+Comment: fin used once
+fins 0000005C
+
+Symbol: fins
+   Definitions
+      At line 32 in file prueba_prac4.s
+   Uses
+      At line 24 in file prueba_prac4.s
+Comment: fins used once
+4 symbols
+341 symbols in table
